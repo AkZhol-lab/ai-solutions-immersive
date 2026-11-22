@@ -1,7 +1,9 @@
 // Screenshots of every scene at 1440 and 390 px → /screens.
-// Usage: node scripts/screens.mjs [--only hero,cta] [--no-build-check]
-// Serves ./dist with `vite preview`, so run `npm run build` first.
-// Also reports console errors/warnings and horizontal overflow.
+// Usage: node scripts/screens.mjs [--only hero,cta] [--out dir] [--suffix -x] [--query a=b]
+//        node scripts/screens.mjs --url https://akzhol-lab.github.io/ai-solutions-immersive/
+// Serves ./dist with `vite preview` (run `npm run build` first), or opens --url as is.
+// Reports console errors/warnings, failed requests, horizontal overflow, text that does not
+// fit, and what loaded: fonts, WebGL (the stage only gets ready after the shaders compiled).
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,10 +20,11 @@ const only = onlyArg ? onlyArg.split(',') : null;
 // --query a=b → extra URL params
 const suffix = arg('--suffix');
 const query = arg('--query');
+const remote = arg('--url');
 const outDir = path.join(root, arg('--out') || 'screens');
 mkdirSync(outDir, { recursive: true });
 
-if (!existsSync(path.join(root, 'dist', 'index.html'))) {
+if (!remote && !existsSync(path.join(root, 'dist', 'index.html'))) {
   console.error('screens: dist/ missing — run `npm run build` first');
   process.exit(1);
 }
@@ -70,12 +73,11 @@ const SCENES = [
   { name: 'cta', at: { scene: 'cta', frac: 1 } },
 ].filter((s) => !only || only.includes(s.name));
 
-const server = await preview({
-  root,
-  logLevel: 'silent',
-  preview: { port: 4317, strictPort: false },
-});
-const url = server.resolvedUrls.local[0] + '?capture' + (query ? `&${query}` : '');
+const server = remote
+  ? null
+  : await preview({ root, logLevel: 'silent', preview: { port: 4317, strictPort: false } });
+const base = remote || server.resolvedUrls.local[0];
+const url = base + (base.includes('?') ? '&' : '?') + 'capture' + (query ? `&${query}` : '');
 
 const browser = await chromium.launch({
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
@@ -99,6 +101,13 @@ try {
         issues.push(`[${vp.name}] console.${m.type()}: ${m.text()}`);
     });
     page.on('pageerror', (e) => issues.push(`[${vp.name}] pageerror: ${e.message}`));
+    page.on('requestfailed', (r) =>
+      issues.push(`[${vp.name}] request failed: ${r.url()} (${r.failure()?.errorText})`),
+    );
+    page.on('response', (r) => {
+      // t.me is the CTA's outbound link, never requested by the page itself
+      if (r.status() >= 400) issues.push(`[${vp.name}] HTTP ${r.status()}: ${r.url()}`);
+    });
 
     await page.goto(url, { waitUntil: 'networkidle' });
     await page.evaluate(() => document.fonts.ready);
@@ -107,12 +116,40 @@ try {
       .catch(() => issues.push(`[${vp.name}] WebGL stage not ready after 20 s`));
     await page.waitForTimeout(2200);
 
+    // what actually loaded: font faces, WebGL, resources by type
+    const loaded = await page.evaluate(() => {
+      const faces = [...document.fonts].map((f) => `${f.family} ${f.weight}: ${f.status}`);
+      const res = performance.getEntriesByType('resource');
+      const byType = {};
+      res.forEach((r) => {
+        const ext = (new URL(r.name).pathname.match(/\.(\w+)$/) ?? [])[1] ?? r.initiatorType;
+        byType[ext] = (byType[ext] ?? 0) + 1;
+      });
+      const canvas = document.querySelector('#gl');
+      return {
+        faces,
+        webgl: {
+          stageReady: window.__app?.ready === true,
+          canvasShown: !!canvas?.classList.contains('is-ready'),
+        },
+        resources: byType,
+      };
+    });
+    console.log(`  [${vp.name}] fonts: ${loaded.faces.join(' · ')}`);
+    console.log(
+      `  [${vp.name}] webgl: ${JSON.stringify(loaded.webgl)} · resources: ${JSON.stringify(loaded.resources)}`,
+    );
+    loaded.faces
+      .filter((f) => !f.endsWith('loaded'))
+      .forEach((f) => issues.push(`[${vp.name}] font not loaded: ${f}`));
+
     for (const scene of SCENES) {
       const found = await page.evaluate(async (at) => {
         const el = document.querySelector(`[data-scene="${at.scene}"]`);
         if (!el) return false;
         // a scene that prepares or targets something this page variant does not have is skipped
-        if ((at.click && !document.querySelector(at.click)) || (at.el && !el.querySelector(at.el))) return false;
+        if ((at.click && !document.querySelector(at.click)) || (at.el && !el.querySelector(at.el)))
+          return false;
         if (at.click) document.querySelector(at.click)?.click();
         for (const [sel, value] of Object.entries(at.fill ?? {})) {
           const f = document.querySelector(sel);
@@ -184,7 +221,7 @@ try {
   }
 } finally {
   await browser.close();
-  await new Promise((r) => server.httpServer.close(r));
+  if (server) await new Promise((r) => server.httpServer.close(r));
 }
 
 if (issues.length) {
