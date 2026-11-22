@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://akzhol-lab.github.io/ai-solutions-immersive/sitemap.xml
