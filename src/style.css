@@ -437,16 +437,6 @@ main {
   transform: rotate(45deg);
   background: var(--accent);
 }
-.footer-link {
-  color: var(--c-fg);
-  text-decoration: underline;
-  text-decoration-color: rgba(237, 237, 237, 0.25);
-  text-underline-offset: 4px;
-  transition: text-decoration-color 0.4s var(--ease-out);
-}
-.footer-link:hover {
-  text-decoration-color: var(--c-fg);
-}
 
 /* ───────────────────────── 1 · Hero ───────────────────────── */
 .hero-inner {

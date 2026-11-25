@@ -30,7 +30,7 @@ Vite · vanilla TypeScript · Three.js · GSAP + ScrollTrigger · Lenis · Tailw
 ## Content rules
 
 - Site language: Russian. Hero title in English: «Intelligence, quietly applied.»
-- Contact / CTA: Telegram @zholic_01 → https://t.me/zholic_01, button «Рассказать в Telegram» (answers the CTA question; the header link stays «Telegram»). Footer: «AI Solutions · Астана» + akzhol-lab.github.io/ai-solutions.
+- Contact / CTA: Telegram @zholic_01 → https://t.me/zholic_01, button «Рассказать в Telegram» (answers the CTA question; the header link stays «Telegram»). Footer: «AI Solutions · Астана» only — no link to the old site (removed at the owner's request).
 - Copy (written with the akzhol-sales + akzhol-copywriting skills, history in `docs/copy-v2.md`, `docs/copy-v3.md`): don't presume the client's pain, describe a situation they recognise, one small next step. Short static texts (hero, manifest, tariffs lead, stats title) are in `index.html`; everything else is in `src/content/copy.ts` and rendered into `index.html` at build time by `src/content/markup.ts` / `src/data/markup.ts` (`<!-- @pains -->`, `@demo`, `@roles`, `@process`, `@faq`, `@cta`). «Для кого» on the site comes from `AUDIENCE` there, not from `Tariff.audience`, which stays verbatim from the xlsx.
 - Facts in the copy come only from the owner's published site and `tariffs.ts`; durations in the process / FAQ are derived from `tariffs.ts`. The Telegram demo uses conditional data and says so under the chat.
 - Never invent numbers, reviews, client logos or cases. If data is missing, remove the block — no placeholders.
